@@ -222,6 +222,7 @@ public final class Skript extends JavaPlugin implements Listener {
 
 	private static final Message WARNING_MESSAGE = new Message("skript.warning message");
 	private static final Message RESTART_MESSAGE = new Message("skript.restart message");
+	private static final String FOLIA_EXPERIMENTAL_WARNING = "Folia support is extremely experimental. Stability is not guaranteed.";
 
 	public static String getWarningMessage() {
 		return WARNING_MESSAGE.getValueOrDefault("It appears that /reload or another plugin reloaded Skript. This is not supported behaviour and may cause issues.");
@@ -244,6 +245,10 @@ public final class Skript extends JavaPlugin implements Listener {
 		} else { // Probably some ancient Bukkit implementation
 			return ServerPlatform.BUKKIT_UNKNOWN;
 		}
+	}
+
+	public static boolean isRunningFolia() {
+		return classExists("io.papermc.paper.threadedregions.RegionizedServer");
 	}
 
 	/**
@@ -363,6 +368,10 @@ public final class Skript extends JavaPlugin implements Listener {
 
 	@Override
 	public void onEnable() {
+		if (isRunningFolia()) {
+			getLogger().severe(FOLIA_EXPERIMENTAL_WARNING);
+		}
+
 		Bukkit.getPluginManager().registerEvents(this, this);
 		if (disabled) {
 			Skript.error(m_invalid_reload.toString());
