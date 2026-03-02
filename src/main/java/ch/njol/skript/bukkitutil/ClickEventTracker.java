@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -14,6 +13,7 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import ch.njol.skript.effects.EffCancelEvent;
+import ch.njol.skript.util.Task;
 
 /**
  * Tracks click events to remove extraneous events for one player click.
@@ -54,11 +54,13 @@ public class ClickEventTracker {
 	public ClickEventTracker(JavaPlugin plugin) {
 		this.firstEvents = new HashMap<>();
 		this.modifiedEvents = new HashSet<>();
-		Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin,
-				() -> {
-					firstEvents.clear();
-					modifiedEvents.clear();
-				}, 1, 1);
+		new Task(plugin, 1, 1) {
+			@Override
+			public void run() {
+				firstEvents.clear();
+				modifiedEvents.clear();
+			}
+		};
 	}
 	
 	/**
