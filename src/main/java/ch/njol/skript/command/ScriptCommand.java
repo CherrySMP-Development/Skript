@@ -22,11 +22,14 @@ import ch.njol.skript.log.Verbosity;
 import ch.njol.skript.util.Date;
 import ch.njol.skript.util.EmptyStacktraceException;
 import ch.njol.skript.util.Timespan;
+import ch.njol.skript.util.Utils;
+import ch.njol.skript.util.chat.BungeeConverter;
+import ch.njol.skript.util.chat.MessageComponent;
+import ch.njol.skript.util.SkriptScheduler;
 import ch.njol.skript.variables.HintManager;
 import ch.njol.skript.variables.Variables;
 import ch.njol.util.StringUtils;
 import com.google.common.base.Preconditions;
-import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
@@ -44,7 +47,6 @@ import org.bukkit.help.HelpTopicComparator;
 import org.bukkit.help.IndexHelpTopic;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.Nullable;
-import org.skriptlang.skript.bukkit.text.TextComponentParser;
 import org.skriptlang.skript.lang.script.Script;
 
 import java.lang.reflect.Constructor;
@@ -76,12 +78,12 @@ public class ScriptCommand implements TabExecutor {
 	private final List<String> aliases;
 	private List<String> activeAliases;
 	private String permission;
-	private final Expression<? extends Component> permissionMessage;
+	private final VariableString permissionMessage;
 	private final String description;
 	private final String prefix;
 	@Nullable
 	private final Timespan cooldown;
-	private final Expression<? extends Component> cooldownMessage;
+	private final Expression<String> cooldownMessage;
 	private final String cooldownBypass;
 	@Nullable
 	private final Expression<String> cooldownStorage;
@@ -162,10 +164,10 @@ public class ScriptCommand implements TabExecutor {
 		if (permissionMessage == null) {
 			VariableString defaultMsg = VariableString.newInstance(Language.get("commands.no permission message"));
 			assert defaultMsg != null;
-			permissionMessage = defaultMsg;
+			this.permissionMessage = defaultMsg;
+		} else {
+			this.permissionMessage = permissionMessage;
 		}
-		//noinspection unchecked
-		this.permissionMessage = permissionMessage.getConvertedExpression(Component.class);
 
 		if (prefix != null) {
 			for (char c : prefix.toCharArray()) {
@@ -187,13 +189,9 @@ public class ScriptCommand implements TabExecutor {
 		this.prefix = prefix;
 
 		this.cooldown = cooldown;
-		if (cooldownMessage == null) {
-			VariableString defaultMsg = VariableString.newInstance(Language.get("commands.cooldown message"));
-			assert defaultMsg != null;
-			cooldownMessage = defaultMsg;
-		}
-		//noinspection unchecked
-		this.cooldownMessage = cooldownMessage.getConvertedExpression(Component.class);
+		this.cooldownMessage = cooldownMessage == null
+				? new SimpleLiteral<>(Language.get("commands.cooldown message"),false)
+				: cooldownMessage;
 		this.cooldownBypass = cooldownBypass;
 		this.cooldownStorage = cooldownStorage;
 
@@ -202,8 +200,7 @@ public class ScriptCommand implements TabExecutor {
 		this.aliases = aliases;
 		activeAliases = new ArrayList<>(aliases);
 
-		TextComponentParser textComponentParser = TextComponentParser.instance();
-		this.description = textComponentParser.toLegacyString(textComponentParser.parseSafe(description));
+		this.description = Utils.replaceEnglishChatStyles(description);
 		this.usage = usage;
 
 		this.executableBy = executableBy;
@@ -242,6 +239,9 @@ public class ScriptCommand implements TabExecutor {
 			bukkitCommand.setDescription(description);
 			bukkitCommand.setLabel(label);
 			bukkitCommand.setPermission(permission);
+			// We can only set the message if it's simple (doesn't contains expressions)
+			if (permissionMessage.isSimple())
+				bukkitCommand.setPermissionMessage(permissionMessage.toString(null));
 			bukkitCommand.setUsage(usage.getUsage());
 			bukkitCommand.setExecutor(this);
 			return bukkitCommand;
@@ -293,7 +293,7 @@ public class ScriptCommand implements TabExecutor {
 						if (!SkriptConfig.keepLastUsageDates.value())
 							setLastUsage(uuid, event, null);
 					} else {
-						Component msg = cooldownMessage.getSingle(event);
+						String msg = cooldownMessage.getSingle(event);
 						if (msg != null)
 							sender.sendMessage(msg);
 						return false;
@@ -323,7 +323,7 @@ public class ScriptCommand implements TabExecutor {
 			runnable.run();
 		} else {
 			// must not wait for the command to complete as some plugins call commands in such a way that the server will deadlock
-			Bukkit.getScheduler().scheduleSyncDelayedTask(Skript.getInstance(), runnable);
+			SkriptScheduler.scheduleSyncDelayedTask(Skript.getInstance(), runnable);
 		}
 
 		return true; // Skript prints its own error message anyway
@@ -364,9 +364,13 @@ public class ScriptCommand implements TabExecutor {
 
 	public boolean checkPermissions(CommandSender sender, Event event) {
 		if (!permission.isEmpty() && !sender.hasPermission(permission)) {
-			Component message = permissionMessage.getSingle(event);
-			assert message != null;
-			sender.sendMessage(message);
+			if (sender instanceof Player) {
+				List<MessageComponent> components =
+					permissionMessage.getMessageComponents(event);
+				((Player) sender).spigot().sendMessage(BungeeConverter.convert(components));
+			} else {
+				sender.sendMessage(permissionMessage.getSingle(event));
+			}
 			return false;
 		}
 		return true;
