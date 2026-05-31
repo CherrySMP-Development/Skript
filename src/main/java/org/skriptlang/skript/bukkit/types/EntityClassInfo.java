@@ -11,6 +11,7 @@ import ch.njol.skript.entity.EntityData;
 import ch.njol.skript.expressions.base.EventValueExpression;
 import ch.njol.skript.lang.ParseContext;
 import ch.njol.skript.util.Experience;
+import ch.njol.skript.util.SkriptScheduler;
 import ch.njol.skript.util.Utils;
 import ch.njol.util.coll.CollectionUtils;
 import net.kyori.adventure.text.Component;
@@ -105,51 +106,63 @@ public class EntityClassInfo extends ClassInfo<Entity> {
 
 		@Override
 		public void change(Entity[] entities, Object @Nullable [] delta, ChangeMode mode) {
-			if (delta == null) {
+			if (Skript.isRunningFolia()) {
 				for (Entity entity : entities) {
-					if (!(entity instanceof Player))
-						entity.remove();
+					if (SkriptScheduler.isOwnedByCurrentRegion(entity)) {
+						change(entity, delta, mode);
+					} else {
+						SkriptScheduler.runTask(Skript.getInstance(), entity, () -> change(entity, delta, mode));
+					}
 				}
 				return;
 			}
+
+			for (Entity entity : entities)
+				change(entity, delta, mode);
+		}
+
+		private void change(Entity entity, Object @Nullable [] delta, ChangeMode mode) {
+			if (delta == null) {
+				if (!(entity instanceof Player))
+					entity.remove();
+				return;
+			}
 			boolean hasItem = false;
-			for (Entity entity : entities) {
-				for (Object deltaObj : delta) {
-					if (deltaObj instanceof PotionEffectType potionEffectType) {
-						assert mode == ChangeMode.REMOVE || mode == ChangeMode.REMOVE_ALL;
-						if (!(entity instanceof LivingEntity livingEntity))
-							continue;
-						livingEntity.removePotionEffect(potionEffectType);
-					} else if (entity instanceof Player player) {
-						if (deltaObj instanceof Experience experience) {
-							player.giveExp(experience.getXP());
-						} else if (deltaObj instanceof Inventory itemStacks) {
-							PlayerInventory inventory = player.getInventory();
-							for (ItemStack itemStack : itemStacks) {
-								if (itemStack == null)
-									continue;
-								if (mode == ChangeMode.ADD) {
-									inventory.addItem(itemStack);
-								} else {
-									inventory.remove(itemStack);
-								}
-							}
-						} else if (deltaObj instanceof ItemType itemType) {
-							hasItem = true;
-							PlayerInventory invi = player.getInventory();
+			for (Object deltaObj : delta) {
+				if (deltaObj instanceof PotionEffectType potionEffectType) {
+					assert mode == ChangeMode.REMOVE || mode == ChangeMode.REMOVE_ALL;
+					if (!(entity instanceof LivingEntity livingEntity))
+						continue;
+					livingEntity.removePotionEffect(potionEffectType);
+				} else if (entity instanceof Player player) {
+					if (deltaObj instanceof Experience experience) {
+						player.giveExp(experience.getXP());
+					} else if (deltaObj instanceof Inventory itemStacks) {
+						PlayerInventory inventory = player.getInventory();
+						for (ItemStack itemStack : itemStacks) {
+							if (itemStack == null)
+								continue;
 							if (mode == ChangeMode.ADD) {
-								itemType.addTo(invi);
-							} else if (mode == ChangeMode.REMOVE) {
-								itemType.removeFrom(invi);
+								inventory.addItem(itemStack);
 							} else {
-								itemType.removeAll(invi);
+								inventory.remove(itemStack);
 							}
+						}
+					} else if (deltaObj instanceof ItemType itemType) {
+						hasItem = true;
+						PlayerInventory invi = player.getInventory();
+						if (mode == ChangeMode.ADD) {
+							itemType.addTo(invi);
+						} else if (mode == ChangeMode.REMOVE) {
+							itemType.removeFrom(invi);
+						} else {
+							itemType.removeAll(invi);
 						}
 					}
 				}
-				if (entity instanceof Player player && hasItem)
-					PlayerUtils.updateInventory(player);
 			}
+			if (entity instanceof Player player && hasItem)
+				PlayerUtils.updateInventory(player);
 		}
 		//</editor-fold>
 	}

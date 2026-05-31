@@ -64,8 +64,35 @@ public final class SkriptScheduler {
 		scheduleSyncDelayedTask(plugin, runnable);
 	}
 
+	public static void runTask(Plugin plugin, Entity entity, Runnable runnable) {
+		if (!Skript.isRunningFolia()) {
+			runnable.run();
+			return;
+		}
+		scheduleFoliaEntityTask(plugin, entity, runnable, 0L);
+	}
+
 	public static void runTaskLater(Plugin plugin, Runnable runnable, long delay) {
 		scheduleSyncDelayedTask(plugin, runnable, delay);
+	}
+
+	public static void runTaskLater(Plugin plugin, Entity entity, Runnable runnable, long delay) {
+		if (!Skript.isRunningFolia()) {
+			scheduleSyncDelayedTask(plugin, runnable, delay);
+			return;
+		}
+		scheduleFoliaEntityTask(plugin, entity, runnable, delay);
+	}
+
+	public static boolean isOwnedByCurrentRegion(Entity entity) {
+		if (!Skript.isRunningFolia())
+			return true;
+		try {
+			Object result = Bukkit.class.getMethod("isOwnedByCurrentRegion", Entity.class).invoke(null, entity);
+			return result instanceof Boolean owned && owned;
+		} catch (ReflectiveOperationException e) {
+			return false;
+		}
 	}
 
 	public static int runTaskLaterAsynchronously(Plugin plugin, Runnable runnable, long delay) {
