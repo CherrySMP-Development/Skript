@@ -64,12 +64,42 @@ public final class SkriptScheduler {
 		scheduleSyncDelayedTask(plugin, runnable);
 	}
 
+	public static boolean isGlobalThread() {
+		if (!Skript.isRunningFolia())
+			return Bukkit.isPrimaryThread();
+		try {
+			Object result = Bukkit.class.getMethod("isGlobalTickThread").invoke(null);
+			return result instanceof Boolean globalThread && globalThread;
+		} catch (ReflectiveOperationException e) {
+			return Bukkit.isPrimaryThread();
+		}
+	}
+
+	public static boolean isTickThread() {
+		if (!Skript.isRunningFolia())
+			return Bukkit.isPrimaryThread();
+		try {
+			Object result = Bukkit.class.getMethod("isTickThread").invoke(null);
+			return result instanceof Boolean tickThread && tickThread;
+		} catch (ReflectiveOperationException e) {
+			return Bukkit.isPrimaryThread() || isGlobalThread();
+		}
+	}
+
 	public static void runTask(Plugin plugin, Entity entity, Runnable runnable) {
 		if (!Skript.isRunningFolia()) {
 			runnable.run();
 			return;
 		}
 		scheduleFoliaEntityTask(plugin, entity, runnable, 0L);
+	}
+
+	public static void runTask(Plugin plugin, Event event, Runnable runnable) {
+		if (!Skript.isRunningFolia()) {
+			runnable.run();
+			return;
+		}
+		scheduleFoliaEventTask(plugin, event, runnable, 0L);
 	}
 
 	public static void runTaskLater(Plugin plugin, Runnable runnable, long delay) {
@@ -236,6 +266,11 @@ public final class SkriptScheduler {
 		Location location = EventValues.getEventValue(event, Location.class, EventValues.TIME_NOW);
 		if (location != null)
 			return location;
+		World world = EventValues.getEventValue(event, World.class, EventValues.TIME_NOW);
+		if (world != null)
+			return world.getSpawnLocation();
+		if (Skript.isRunningFolia() && isGlobalThread() && !Bukkit.getWorlds().isEmpty())
+			return Bukkit.getWorlds().get(0).getSpawnLocation();
 		Entity entity = getEventEntity(event);
 		return entity != null ? entity.getLocation() : null;
 	}

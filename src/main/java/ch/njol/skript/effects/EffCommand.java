@@ -2,6 +2,7 @@ package ch.njol.skript.effects;
 
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.jetbrains.annotations.Nullable;
@@ -15,6 +16,7 @@ import ch.njol.skript.lang.Effect;
 import ch.njol.skript.lang.Expression;
 import ch.njol.skript.lang.SkriptParser.ParseResult;
 import ch.njol.skript.lang.VariableString;
+import ch.njol.skript.util.SkriptScheduler;
 import ch.njol.skript.util.StringMode;
 import ch.njol.skript.util.Utils;
 import ch.njol.util.Kleenean;
@@ -79,10 +81,24 @@ public class EffCommand extends Effect {
 						Utils.sendPluginMessage(player, EffConnect.BUNGEE_CHANNEL, MESSAGE_CHANNEL, player.getName(), "/" + command);
 						continue;
 					}
-					Skript.dispatchCommand(sender, command);
+					String finalCommand = command;
+					if (Skript.isRunningFolia() && sender instanceof Entity entity) {
+						SkriptScheduler.runTask(Skript.getInstance(), entity, () -> Skript.dispatchCommand(sender, finalCommand));
+						continue;
+					}
+					if (Skript.isRunningFolia()) {
+						SkriptScheduler.runTask(Skript.getInstance(), event, () -> Skript.dispatchCommand(sender, finalCommand));
+						continue;
+					}
+					Skript.dispatchCommand(sender, finalCommand);
 				}
 			} else {
-				Skript.dispatchCommand(Bukkit.getConsoleSender(), command);
+				String finalCommand = command;
+				if (Skript.isRunningFolia()) {
+					SkriptScheduler.runTask(Skript.getInstance(), event, () -> Skript.dispatchCommand(Bukkit.getConsoleSender(), finalCommand));
+					continue;
+				}
+				Skript.dispatchCommand(Bukkit.getConsoleSender(), finalCommand);
 			}
 		}
 	}

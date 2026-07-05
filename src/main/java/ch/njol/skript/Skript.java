@@ -41,6 +41,7 @@ import org.bstats.bukkit.Metrics;
 import org.bukkit.*;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -1823,6 +1824,16 @@ public final class Skript extends JavaPlugin implements Listener {
 	 * @return Whether the command was run
 	 */
 	public static boolean dispatchCommand(final CommandSender sender, final String command) {
+		if (isRunningFolia()) {
+			if (sender instanceof Entity entity && !SkriptScheduler.isOwnedByCurrentRegion(entity)) {
+				SkriptScheduler.runTask(getInstance(), entity, () -> dispatchCommand(sender, command));
+				return true;
+			}
+			if (!SkriptScheduler.isTickThread()) {
+				SkriptScheduler.runTask(getInstance(), () -> dispatchCommand(sender, command));
+				return true;
+			}
+		}
 		try {
 			if (sender instanceof Player) {
 				final PlayerCommandPreprocessEvent e = new PlayerCommandPreprocessEvent((Player) sender, "/" + command);
