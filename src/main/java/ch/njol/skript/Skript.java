@@ -1824,15 +1824,9 @@ public final class Skript extends JavaPlugin implements Listener {
 	 * @return Whether the command was run
 	 */
 	public static boolean dispatchCommand(final CommandSender sender, final String command) {
-		if (isRunningFolia()) {
-			if (sender instanceof Entity entity && !SkriptScheduler.isOwnedByCurrentRegion(entity)) {
-				SkriptScheduler.runTask(getInstance(), entity, () -> dispatchCommand(sender, command));
-				return true;
-			}
-			if (!SkriptScheduler.isTickThread()) {
-				SkriptScheduler.runTask(getInstance(), () -> dispatchCommand(sender, command));
-				return true;
-			}
+		if (isRunningFolia() && !SkriptScheduler.isGlobalThread()) {
+			SkriptScheduler.runTask(getInstance(), () -> dispatchCommand(sender, command));
+			return true;
 		}
 		try {
 			if (sender instanceof Player) {
